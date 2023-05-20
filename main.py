@@ -104,7 +104,7 @@ def msg(message):
         bot.register_next_step_handler(message, gptrequest, next)
 
     elif message.text == "Написать администрации":
-        bot.send_message(message.chat.id, "Введите текст сообщения администрации:\n\nкак можно подробно и чётко изложите суть своей проблемы, вопроса, или предложения\nВсе претензии по поводу качества ответов нейросети просьба посылать напрямую Создателю.", reply_markup = markup.cancel)
+        bot.send_message(message.chat.id, "Введите текст сообщения администрации:\n\nкак можно подробно и чётко изложите суть своей проблемы, вопроса, или предложения\nВсе претензии по поводу качества ответов нейросети просьба посылать напрямую Создателю нейросети.", reply_markup = markup.cancel)
         bot.register_next_step_handler(message, mess_for_admin)
 
     elif message.from_user.id == config.ADMIN:
@@ -128,6 +128,29 @@ def msg(message):
 
 # defs ===============================================================================================================
 
+def text_to_user1(message):
+    input_id = message.text
+    if input_id == "Отмена":
+        menu(message)
+    else:
+        bot.send_message(message.chat.id, "Введите посылаемый текст")
+        bot.register_next_step_handler(message, text_to_user2, input_id)
+
+def text_to_user2(message, input_id):
+    if message.text == "Отмена":
+        menu(message)
+    else: 
+        input_text = message.text
+        try:
+            bot.send_message(input_id, input_text)
+            log_item = f'Сообщение "{input_text}" отправлено {input_id}'
+        except:
+            log_item = f'Сообщение "{input_text}" НЕ УДАЛОСЬ отправить {input_id}'
+        
+        bot.send_message(message.chat.id, log_item)
+        save_logs(log_item)
+        menu(message)
+
 def gptrequest(message, next=None):
     if config.UPDATE_BD:
         update_db(message) # обновление
@@ -145,6 +168,7 @@ def gptrequest(message, next=None):
             db.close()
             menu(message)
         elif message.text == '/clear':
+            db.close()
             cl(message)
             #save_logs(f"Пользователь @{message.from_user.username}, {message.from_user.id}\nИспользовал /clear")
             # уже есть логирование в cl()
@@ -179,11 +203,15 @@ def gptrequest(message, next=None):
             
             #print('ses:',session)
             # Запрос
-            response, session = gpt(message.text, message.chat.id, eval(session), message.from_user.first_name)
+            response, session, drop = gpt(message.text, message.chat.id, eval(session), message.from_user.first_name)
 
+            if drop:
+                text = 'Превышение лимита\nАвтоочистка памяти\nВоспользуйтесть коммандой /clear, или кнопкой ниже в случае необходимости'
+                bot.send_message(message.chat.id, text, reply_markup = markup.clear_inline_keyboard)
+                
             # + экстренная обрезка ответа
             if len(response) > 3_900:
-                    message.text = message.text[:4_000]
+                message.text = message.text[:4_000]
 
             c.execute(f"UPDATE users SET story = ? WHERE id = {message.from_user.id}", ([str(session)]))
             db.commit()
@@ -193,7 +221,7 @@ def gptrequest(message, next=None):
             response_trns = tr(response)
 
             # логирование ответа
-            log_item = f"\nОтвет: {response}\nдля @{message.from_user.username}, {message.from_user.id}\n"
+            log_item = f"Ответ: {response}\nдля @{message.from_user.username}, {message.from_user.id}\n"
             log_send = save_logs(log_item, log_send)
 
             save_logs(f"Перевод:\n{response_trns}", log_send)

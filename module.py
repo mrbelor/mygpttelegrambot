@@ -100,7 +100,8 @@ def clear_user(message):
             menu(message)
 
 
-def gpt(text, Id, session, username = 'User'):    
+def gpt(text, Id, session, username = 'User'):
+    drop = None
     # sessions - словарь списков словарей
     # sessions - {Id:[{"role":"user", "content":text}, {"role":"assistant", "content":text}],
     #             Id:[{"role":"user", "content":text}, {"role":"assistant", "content":text}],
@@ -113,18 +114,20 @@ def gpt(text, Id, session, username = 'User'):
     session.append({"role":"user", "content":text})
     # проверка на превышение
     count = list_token_counter(session)
-    if count < 2_000:
+    if count < 3_000:
         save_logs(str(count)+" токенов потрачено на запрос")
     else:
 
-        reply = save_logs(f"Превышение допустимого количества токенов пользователем @{message.from_user.username}, {message.from_user.id}!\n(потеря информации)\ncount: {str(count)}")
-        bot.send_message("Память разговора превышает допустимые значения!\nНаиболее ранние запросы в памяти были стёрты.\nПожалуйста, воспользуйтесть коммандой /clear, для полной очистки памяти бота")
+        reply = save_logs(f"Превышение допустимого количества токенов пользователем {username}, {Id}!\n(потеря информации)\ncount: {str(count)}")
+        drop = True
 
-        while count > 2_000:
+        while count > 3_000:
             old_cout = count
             del session[1]
             count = list_token_counter(session)
-            save_logs(f"Удаление {old_cout-count} токенов из истории @{message.from_user.username}, {message.from_user.id}\nlen(session) = {count}", reply)
+            save_logs(f"Удаление {old_cout-count} токенов из истории {username}, {Id}\nlen(session) = {count}", reply)
+
+
 
     #sessions[Id] 
 
@@ -139,13 +142,13 @@ def gpt(text, Id, session, username = 'User'):
 
     session.append({"role":"assistant", "content":answer})
 
-    return answer, session
+    return answer, session, drop
 
 def update_db(message):
     Id = message.from_user.id
     db = sqlite3.connect(path("Bot3.5_DB.db")) # открытие базы данных
     c = db.cursor() # инициализация курсора
-    c.execute(f"UPDATE users SET username = ? WHERE id = {Id}", (['@'+message.from_user.username]))
+    c.execute(f"UPDATE users SET username = ? WHERE id = {Id}", (['@'+str(message.from_user.username)]))
     c.execute(f"UPDATE users SET firstname = ? WHERE id = {Id}", ([message.from_user.first_name]))
     
     db.commit()
@@ -209,26 +212,5 @@ def finder(message):
         save_logs(log_item)
         menu(message)
 
-def text_to_user1(message):
-    input_id = message.text
-    if input_id == "Отмена":
-        menu(message)
-    else:
-        bot.send_message(message.chat.id, "Введите посылаемый текст")
-        bot.register_next_step_handler(message, text_to_user2, input_id)
 
-def text_to_user2(message, input_id):
-    if message.text == "Отмена":
-        menu(message)
-    else: 
-        input_text = message.text
-        try:
-            bot.send_message(input_id, input_text)
-            log_item = f'Сообщение "{input_text}" отправлено {input_id}'
-        except:
-            log_item = f'Сообщение "{input_text}" НЕ УДАЛОСЬ отправить {input_id}'
-        
-        bot.send_message(message.chat.id, log_item)
-        save_logs(log_item)
-        menu(message)
 
