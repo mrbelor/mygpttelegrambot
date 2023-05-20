@@ -12,17 +12,26 @@ menu.add(button_menu1, button_menu2)
 admmenu = types.ReplyKeyboardMarkup(resize_keyboard = True)
 button_menu3 = types.KeyboardButton("Поиск пользователя") # с выводом всех его данных (id баланса и запросов)
 button_menu4 = types.KeyboardButton("Написать от имени бота")
-admmenu.add(button_menu1, button_menu2, button_menu3, button_menu4)
+button_menu5 = types.KeyboardButton("Очистить память бота у пользователя")
+admmenu.add(button_menu1, button_menu2, button_menu3, button_menu4, button_menu5)
 
 # Cancel markup
 cancel = types.ReplyKeyboardMarkup(resize_keyboard = True)
 button_cancel = types.KeyboardButton("Отмена") #создаём кнопку 
 cancel.add(button_cancel) # пихаем кнопку
 
-rest_menu = types.ReplyKeyboardMarkup(resize_keyboard = True)
-button_rest_menu1 = types.KeyboardButton("старт▶") 
-button_rest_menu2 = types.KeyboardButton("стоп❌")
-rest_menu.add(button_rest_menu1, button_rest_menu2)
+'''
+def create_inline_Keyboard(button_name_list, button_callback_data_list):
+	Keyboard = types.InlineKeyboardMarkup(row_width=2)
+	for i in range(0, len(button_name_list)):
+		button = types.InlineKeyboardButton(button_name_list[i], callback_data=button_callback_data_list[i])
+		Keyboard.add(button)
 
-InlineClear = types.InlineKeyboardMarkup(row_width=2)
-button_InlineClear1 = types.InlineKeyboardButton('Очистить память бота', callback_data='clear')
+	return Keyboard
+'''
+
+clear_inline_keyboard = types.InlineKeyboardMarkup(row_width=2)
+button_inline_keyboard1 = types.InlineKeyboardButton('Очистить память бота', callback_data='clear') #создаём кнопку 
+clear_inline_keyboard.add(button_inline_keyboard1) # пихаем кнопку
+
+empty_markup = types.InlineKeyboardMarkup(row_width=2)

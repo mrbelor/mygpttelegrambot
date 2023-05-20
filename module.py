@@ -1,4 +1,4 @@
-import telebot, openai, datetime, sqlite3, traceback, tiktoken, re#, langdetect, googletrans==3.1.0a0
+import telebot, openai, datetime, sqlite3, traceback, tiktoken, re, os#, langdetect, googletrans==3.1.0a0
 
 from telebot import types
 from langdetect import detect as lang # для определения языка ввода
@@ -16,9 +16,15 @@ tik = tiktoken.encoding_for_model(config.MODEL)
 
 def time(text = ""): # приписывает к тексту спереди дату
     if text:
-        return str(datetime.datetime.now())[:-7] + " " + text + "\n"
+        return str(datetime.datetime.now())[:-7] + "\n" + text + "\n"
     else:
         return str(datetime.datetime.now())[:-7]
+
+def path(text):
+    path_to_file = os.path.abspath(__file__)
+    filename = os.path.basename(path_to_file)
+    
+    return path_to_file[:-len(filename)] + text
 
 def list_token_counter(messages):
     tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
@@ -63,16 +69,16 @@ def gpt(text, Id, session, username = 'User'):
     session.append({"role":"user", "content":text})
     # проверка на превышение
     count = list_token_counter(session)
-    if count < 4_000:
+    if count < 2_000:
         save_logs(str(count)+" токенов потрачено на запрос")
     else:
 
         reply = save_logs(f"Превышение допустимого количества токенов пользователем @{message.from_user.username}, {message.from_user.id}!\n(потеря информации)\ncount: {str(count)}")
         bot.send_message("Память разговора превышает допустимые значения!\nНаиболее ранние запросы в памяти были стёрты.\nПожалуйста, воспользуйтесть коммандой /clear, для полной очистки памяти бота")
 
-        while count > 4_000:
+        while count > 2_000:
             old_cout = count
-            del session[0]
+            del session[1]
             count = list_token_counter(session)
             save_logs(f"Удаление {old_cout-count} токенов из истории @{message.from_user.username}, {message.from_user.id}\nlen(session) = {count}", reply)
 
@@ -92,21 +98,22 @@ def gpt(text, Id, session, username = 'User'):
 
 def update_db(message):
     Id = message.from_user.id
-    db = sqlite3.connect("Bot_DB.db") # открытие базы данных
+    db = sqlite3.connect(path("Bot3.5_DB.db")) # открытие базы данных
     c = db.cursor() # инициализация курсора
-
     c.execute(f"UPDATE users SET username = ? WHERE id = {Id}", (['@'+message.from_user.username]))
     c.execute(f"UPDATE users SET firstname = ? WHERE id = {Id}", ([message.from_user.first_name]))
     
     db.commit()
     db.close()
 
-def clear_session(message):
-    Id = message.from_user.id
-    db = sqlite3.connect("Bot_DB.db") # открытие базы данных
+def clear_session(Id):
+    db = sqlite3.connect(path("Bot3.5_DB.db")) # открытие базы данных
     c = db.cursor() # инициализация курсора
 
-    c.execute(f"UPDATE users SET story = ? WHERE id = {message.from_user.id}", (['[]']))
+    #c.execute(f"UPDATE users SET story = ? WHERE id = {Id}", (["[]"]))
+    #c.execute(f"UPDATE users SET story = ? WHERE id = ?", (["[]", Id]))
+    c.execute("UPDATE users SET story = ? WHERE id = ?", ('[]', str(Id)))
+    #c.execute(f"UPDATE users SET username = ? WHERE id = {Id}", (['@'+message.from_user.username]))
     db.commit()
     db.close()
 
@@ -115,7 +122,7 @@ def mess_for_admin(message):
     if message.text == "Отмена":
         menu(message)
     else:
-        log_item = f'\n@mrbelor!\nCообщение от пользователя \n@{message.from_user.username}, {message.from_user.id}:\n"{message.text}"'
+        log_item = f'@mrbelor!\nCообщение от пользователя \n@{message.from_user.username}, {message.from_user.id}:\n"{message.text}"'
         save_logs(log_item)
         bot.send_message(config.ADMIN, time(log_item))
         bot.send_message(message.chat.id, "Сообщение отправлено, спасибо за обращение")
@@ -126,7 +133,7 @@ def finder(message):
         menu(message)
     
     else:
-        db = sqlite3.connect("Bot_DB.db") # открытие базы данных
+        db = sqlite3.connect(path("Bot3.5_DB.db")) # открытие базы данных
         c = db.cursor() # init курсор
 
         if message.text[0] == "@":
@@ -149,7 +156,8 @@ def finder(message):
         db.close()
 
         for i in x:
-            log_item += f"\n{i[2]}, {i[1]},\nid: {i[0]}, story_len: {i[4].count("'role': 'user'")},\ndate: {i[3]}"
+            y = i[4].count("'role': 'user'")
+            log_item += (f"{i[2]}, {i[1]},\nid: {i[0]}, story_len: {y},\ndate: {i[3]}\n")
 
         bot.send_message(message.chat.id, log_item)
         save_logs(log_item)
@@ -170,9 +178,9 @@ def text_to_user2(message, input_id):
         input_text = message.text
         try:
             bot.send_message(input_id, input_text)
-            log_item = f'\nСообщение "{input_text}" отправлено {input_id}'
+            log_item = f'Сообщение "{input_text}" отправлено {input_id}'
         except:
-            log_item = f'\nСообщение "{input_text}" НЕ УДАЛОСЬ отправить {input_id}'
+            log_item = f'Сообщение "{input_text}" НЕ УДАЛОСЬ отправить {input_id}'
         
         bot.send_message(message.chat.id, log_item)
         save_logs(log_item)

@@ -7,7 +7,7 @@ from googletrans import Translator
 import config, markup
 from module import *
 
-db = sqlite3.connect("Bot_DB.db") # открытие базы данных
+db = sqlite3.connect(path("Bot3.5_DB.db")) # открытие базы данных
 c = db.cursor() # инициализация курсора
 # создание бд, если её не существовало
 c.execute("""CREATE TABLE IF NOT EXISTS users(
@@ -28,18 +28,18 @@ instruct_url = f'[правильное_написание_запросов.txt](
 @bot.message_handler(commands=['start'])
 def start_comm(message):
     # Занос пользователя в базу данных
-    db = sqlite3.connect("Bot_DB.db") # Открытие
+    db = sqlite3.connect(path("Bot3.5_DB.db")) # Открытие
     c = db.cursor() # инициализация курсора
     c.execute(f"SELECT id FROM users WHERE id = {message.chat.id}") # поиск в базе, и выбор при находе
     if c.fetchone():
         update_db(message)
         #clear_session(message)
-        log_item = f"\nПользователь @{message.from_user.username}, {message.from_user.id} нажал /start"
+        log_item = f"Пользователь @{message.from_user.username}, {message.from_user.id} нажал /start"
     else:
         x = [{"role":"system", "content":config.SYSTEM_MES.replace("username", message.from_user.first_name)}]
         x = str(x)
         c.execute("INSERT INTO users VALUES(?, ?, ?, ?, ?)", (message.from_user.id, '@'+str(message.from_user.username), message.from_user.first_name, time(), x))
-        log_item = f"\nНовый пользователь!\nid: {message.from_user.id}\nusername: @{message.from_user.username}\nfirstname: {message.from_user.first_name}\n"
+        log_item = f"Новый пользователь!\nid: {message.from_user.id}\nusername: @{message.from_user.username}\nfirstname: {message.from_user.first_name}\n"
         
         db.commit()
         db.close()
@@ -56,9 +56,21 @@ def start_comm(message):
 
 @bot.message_handler(commands=['clear'])
 def cl(message):
-    clear_session(message)
-    save_logs(f'@{message.from_user.username}, {message.from_user.id}\nочистил память gpt')
-    bot.send_message(message.chat.id, 'Память успешно очищена.')
+    Id = message.from_user.id
+    username = message.from_user.username
+
+    clear_session(Id)
+    save_logs(f'@{username}, {Id} очистил память gpt')
+    
+    bot.send_message(Id, 'Память успешно очищена.')
+
+@bot.message_handler(commands=['drop'])
+def test(message):
+    if message.from_user.id == config.ADMIN:
+        a = [1]
+        print(a[1]) # вызов ошибки
+    else:
+        bot.send_message(message.chat.id, f"{message.from_user.username}, вы не можете использовать эту команду")
 
 '''
 @bot.message_handler(commands=['test'])
@@ -72,11 +84,15 @@ def test(message):
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
     if call.data == 'clear':
-        cl()
+        #save_logs(str(call))
+        cl(call)
+        bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup.empty_markup)
         # Делать что-то, когда нажимается кнопка 1
-    elif call.data == 'button2':
+    elif call.data == 'translate':
+        pass
         # Сделайте что-нибудь, когда нажата кнопка 2
     else:
+        pass
         # Обработать другие нажатия на кнопку
 
 
@@ -118,7 +134,7 @@ def gptrequest(message, next=None):
     if config.UPDATE_BD:
         update_db(message) # обновление
 
-    db = sqlite3.connect("Bot_DB.db") # открытие базы данных
+    db = sqlite3.connect(path("Bot3.5_DB.db")) # открытие базы данных
     c = db.cursor() # инициализация курсора
     c.execute("SELECT story FROM users WHERE id = ?", ([message.chat.id]))
     session = c.fetchone()[0]
@@ -131,7 +147,7 @@ def gptrequest(message, next=None):
             db.close()
             menu(message)
         elif message.text == '/clear':
-            cl()
+            cl(message)
             #save_logs(f"Пользователь @{message.from_user.username}, {message.from_user.id}\nИспользовал /clear")
             # уже есть логирование в cl()
         else:
@@ -152,11 +168,11 @@ def gptrequest(message, next=None):
 
             # логирование запроса
             if len(logs_text) < 2000 and (logs_trns is None or len(logs_trns) < 2000):
-                log_send = save_logs(f'\nЗапрос "{logs_text}"\nПеревод: "{logs_trns}"\nот @{message.from_user.username}, {message.from_user.id}\n')
+                log_send = save_logs(f'Запрос "{logs_text}"\nПеревод: "{logs_trns}"\nот @{message.from_user.username}, {message.from_user.id}\n')
             else:
-                log_send = save_logs(f'\nЗапрос "{logs_text}"')
+                log_send = save_logs(f'Запрос "{logs_text}"')
                 save_logs(f'Перевод: "{logs_trns}"')
-                save_logs(f'\nот @{message.from_user.username}, {message.from_user.id}\n')
+                save_logs(f'от @{message.from_user.username}, {message.from_user.id}\n')
 
 
             # Сообщение об ожидании в переменной, для последующего удаления
@@ -164,9 +180,9 @@ def gptrequest(message, next=None):
             if next:
                 bot.delete_message(message.chat.id, next.id) # удаление сообщения о следующем запросе
             
-            print('ses:',session)
+            #print('ses:',session)
             # Запрос
-            state, response, session = gpt(message.text, message.chat.id, eval(session), message.from_user.first_name)
+            response, session = gpt(message.text, message.chat.id, eval(session), message.from_user.first_name)
 
             c.execute(f"UPDATE users SET story = ? WHERE id = {message.from_user.id}", ([str(session)]))
             db.commit()
@@ -179,23 +195,25 @@ def gptrequest(message, next=None):
             log_item = f"\nОтвет: {response}\nдля @{message.from_user.username}, {message.from_user.id}\n"
             log_send = save_logs(log_item, log_send)
 
-            save_logs(f"\nПеревод:\n{response_trns}", log_send)
+            save_logs(f"Перевод:\n{response_trns}", log_send)
 
             # пользователю
             bot.delete_message(message.chat.id, send.id) # удаление сообщения с ожиданием
-            send = bot.reply_to(message, response) # ответ пользователю
+            send = bot.reply_to(message, response, reply_markup = markup.cancel) # ответ пользователю
             bot.reply_to(send, f"Перевод:\n{response_trns}")
 
             # дальше
-            next = bot.send_message(message.chat.id, "Введите текст следующего запроса:\nиспользуйте комманду /clear, чтобы очистить память разговора\n\n"+ instruct_url, disable_web_page_preview = True, parse_mode='Markdown', reply_markup = markup.cancel)
+            next = bot.send_message(message.chat.id, "Введите текст следующего запроса:\n\n"+ instruct_url, disable_web_page_preview = True, parse_mode='Markdown', reply_markup = markup.clear_inline_keyboard)
             bot.register_next_step_handler(message, gptrequest, next)
+
+
 
     else:
         bot.send_message(message.chat.id, "Ошибка. Вы не были найдены в базе.\nПереадресация на начало. Попробуйте снова, если видите это собщение в первый раз")
         start_comm(message)
 
 # запуск мотора ####################################################################################
-if config.AUTO_START:
+if not config.AUTO_RESTART:
     bot.polling(none_stop=True) # отключение автоподъёма
 
 error, drop = None, None
@@ -203,25 +221,23 @@ while True:
     try:
         # Логи --------------------------------------------------------------------
         if drop:
-            f = open("error_3.5.txt", "rb")
+            f = open(path("error_3.5.txt"), "rb")
             bot.send_document(config.LOG_CHAT, f, caption=drop)
 
             drop = None
             error = None
         else:
-            start = time("\nЗапуск бота")
-            bot.send_message(config.LOG_CHAT, start)
-            print(start)                # Отражение в консоли
+            save_logs("Запуск бота")
             #запуск=========================================================================
             bot.polling(none_stop=True)
     
     except Exception as e:
         if not error:
-            drop = time("\nБот упал")
+            drop = time("Бот упал")
             error = traceback.format_exc()
 
             print(drop)
             print(error)
 
-            with open("error.txt", "w", encoding="utf-8") as file:
+            with open(path("error_3.5.txt"), "w", encoding="utf-8") as file:
                 txt = file.write(drop + 'Ошибка:\n' + error)
