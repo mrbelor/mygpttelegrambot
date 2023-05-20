@@ -35,3 +35,16 @@ button_inline_keyboard1 = types.InlineKeyboardButton('Очистить памя�
 clear_inline_keyboard.add(button_inline_keyboard1) # пихаем кнопку
 
 empty_markup = types.InlineKeyboardMarkup(row_width=2)
+
+boolean = types.ReplyKeyboardMarkup(resize_keyboard = True)
+button_boolean1 = types.KeyboardButton("Да")
+button_boolean2 = types.KeyboardButton("Нет")
+boolean.add(button_boolean1, button_boolean2)
+
+
+'''
+boolean_inline = types.InlineKeyboardMarkup(row_width=2)
+button_boolean_inline1 = types.InlineKeyboardButton("Да", callback_data='Да')
+button_boolean_inline2 = types.InlineKeyboardButton("Нет", callback_data='Нет')
+boolean_inline.add(button_boolean_inline1, button_boolean_inline2)
+'''

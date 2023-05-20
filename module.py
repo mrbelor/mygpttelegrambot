@@ -14,6 +14,13 @@ bot = telebot.TeleBot(config.BOT_T)
 #tik = tiktoken.get_encoding("cl100k_base")
 tik = tiktoken.encoding_for_model(config.MODEL)
 
+def menu(message):
+    mrk = markup.menu
+    if message.from_user.id == config.ADMIN:
+        mrk = markup.admmenu
+
+    bot.send_message(message.chat.id, "Меню", reply_markup = mrk)
+
 def time(text = ""): # приписывает к тексту спереди дату
     if text:
         return str(datetime.datetime.now())[:-7] + "\n" + text + "\n"
@@ -56,6 +63,43 @@ def save_logs(log_item, reply=None):
     return x
 
 
+def clear_user(message):
+    input_id = message.text
+    if input_id == "Отмена":
+        #return
+        menu(message)
+    else:
+        db = sqlite3.connect(path("Bot3.5_DB.db")) # открытие базы данных
+        c = db.cursor() # инициализация курсора
+        c.execute("SELECT story FROM users WHERE id = ?", ([input_id]))
+        story = c.fetchone()[0]
+        db.close()
+        
+        if story == '[]':
+            bot.send_message(message.chat.id, "Пустая история")
+            #return
+            menu(message)
+        
+        elif story:
+            count = list_token_counter(eval(story))
+            with open(path("story.txt"), "w", encoding="utf-8") as file:
+                    txt = file.write(story)
+            
+            clear_session(input_id)
+            
+            f = open(path("story.txt"), "rb")
+            bot.send_document(config.LOG_CHAT, f, caption=input_id+f'\nTokens: {str(count)}\nОчищено')
+            f = open(path("story.txt"), "rb")
+            bot.send_document(message.chat.id, f, caption=input_id+f'\nTokens: {str(count)}\nОчищено')
+
+            menu(message)
+
+        else:
+            bot.send_message(message.chat.id, "не найдено  базе данных")
+            #return
+            menu(message)
+
+
 def gpt(text, Id, session, username = 'User'):    
     # sessions - словарь списков словарей
     # sessions - {Id:[{"role":"user", "content":text}, {"role":"assistant", "content":text}],
@@ -87,7 +131,8 @@ def gpt(text, Id, session, username = 'User'):
     x = openai.ChatCompletion.create(
         model = config.MODEL,
         # список словарей
-        messages = session
+        messages = session,
+        max_tokens = 1000
         )
 
     answer = x['choices'][0]['message']['content']
@@ -148,16 +193,17 @@ def finder(message):
 
         x = c.fetchall()
         if x:
-            log_item = f"\nНайдено {len(x)} человек с {what}: {message.text}"
+            log_item = f"Найдено {len(x)} человек с {what}: {message.text}\n"
         else:
-            log_item = f'\nПользователя с {what}: {message.text} не удалось найти'
+            log_item = f'Пользователя с {what}: {message.text} не удалось найти'
 
         db.commit()
         db.close()
 
         for i in x:
-            y = i[4].count("'role': 'user'")
-            log_item += (f"{i[2]}, {i[1]},\nid: {i[0]}, story_len: {y},\ndate: {i[3]}\n")
+            #y = i[4].count("'role': 'user'")
+            y = list_token_counter(eval(i[4]))
+            log_item += (f"{i[2]}, {i[1]},\nid: {i[0]} , tokens: {y},\ndate: {i[3]}\n")
 
         bot.send_message(message.chat.id, log_item)
         save_logs(log_item)

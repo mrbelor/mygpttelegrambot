@@ -114,6 +114,10 @@ def msg(message):
         elif message.text == "Написать от имени бота":
             bot.send_message(message.chat.id, "Введите ID целевого пользователя", reply_markup = markup.cancel)
             bot.register_next_step_handler(message, text_to_user1)
+        elif message.text == "Очистить память бота у пользователя":
+            bot.send_message(message.chat.id, "Введите ID целевого пользователя", reply_markup = markup.cancel)
+            bot.register_next_step_handler(message, clear_user)
+
         else:
             menu(message)
     elif message.text == "Отмена":
@@ -123,12 +127,6 @@ def msg(message):
         bot.register_next_step_handler(message, gptrequest)
 
 # defs ===============================================================================================================
-def menu(message):
-    mrk = markup.menu
-    if message.from_user.id == config.ADMIN:
-        mrk = markup.admmenu
-
-    bot.send_message(message.chat.id, "Меню", reply_markup = mrk)
 
 def gptrequest(message, next=None):
     if config.UPDATE_BD:
@@ -177,12 +175,15 @@ def gptrequest(message, next=None):
 
             # Сообщение об ожидании в переменной, для последующего удаления
             send = bot.reply_to(message, "Ожидание...")
-            if next:
-                bot.delete_message(message.chat.id, next.id) # удаление сообщения о следующем запросе
+            
             
             #print('ses:',session)
             # Запрос
             response, session = gpt(message.text, message.chat.id, eval(session), message.from_user.first_name)
+
+            # + экстренная обрезка ответа
+            if len(response) > 3_900:
+                    message.text = message.text[:4_000]
 
             c.execute(f"UPDATE users SET story = ? WHERE id = {message.from_user.id}", ([str(session)]))
             db.commit()
@@ -199,6 +200,9 @@ def gptrequest(message, next=None):
 
             # пользователю
             bot.delete_message(message.chat.id, send.id) # удаление сообщения с ожиданием
+            if next:
+                bot.delete_message(message.chat.id, next.id) # удаление сообщения о следующем запросе
+                
             send = bot.reply_to(message, response, reply_markup = markup.cancel) # ответ пользователю
             bot.reply_to(send, f"Перевод:\n{response_trns}")
 
